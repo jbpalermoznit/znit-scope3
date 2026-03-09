@@ -204,6 +204,53 @@ export async function listSharedPdfs(
         const siteDrive = (await siteDriveRes.json()) as { id: string }
         console.log('[onedrive] site drive ok:', siteDrive.id)
 
+        // Strategy A: Follow sharing URL redirect to extract server-relative folder path.
+        // For "anyone with link" or "org" sharing, SharePoint redirects to the actual folder URL
+        // (e.g. /personal/{user}/Documents/FolderName/Forms/AllItems.aspx) which reveals the path.
+        try {
+          const redirectRes = await fetch(sharingUrl, {
+            redirect: 'follow',
+            headers: { ...headers, 'User-Agent': 'Mozilla/5.0 (compatible)' },
+          })
+          const finalUrl = redirectRes.url
+          console.log('[onedrive] sharing URL resolved to:', finalUrl)
+
+          if (finalUrl && finalUrl.includes(`/personal/${driveOwnerUser}/`)) {
+            const finalParts = new URL(finalUrl).pathname.split('/').filter(Boolean)
+            const pIdx = finalParts.indexOf('personal')
+            if (pIdx !== -1 && finalParts.length > pIdx + 2) {
+              const stopWords = new Set(['Forms', '_layouts', '_vti_bin', '_api', 'pages'])
+              let endIdx = finalParts.length
+              for (let i = pIdx + 2; i < finalParts.length; i++) {
+                if (stopWords.has(finalParts[i]) || finalParts[i].includes('.aspx') || finalParts[i].startsWith('_')) {
+                  endIdx = i
+                  break
+                }
+              }
+              const folderPath = finalParts.slice(pIdx + 2, endIdx).join('/')
+              console.log('[onedrive] extracted folder path from redirect:', folderPath)
+              if (folderPath) {
+                const encodedPath = folderPath.split('/').map(encodeURIComponent).join('/')
+                const navUrl = `https://graph.microsoft.com/v1.0/drives/${siteDrive.id}/root:/${encodedPath}:/children`
+                const navRes = await fetch(navUrl, { headers })
+                if (navRes.ok) {
+                  const results: SharedPdfFile[] = []
+                  const folderNames: string[] = []
+                  await collectPdfs(navUrl, headers, siteDrive.id, '', results, folderNames)
+                  if (results.length > 0) {
+                    console.log('[onedrive] redirect strategy: found', results.length, 'PDFs in', folderPath)
+                    return { files: results, folderNames }
+                  }
+                } else {
+                  console.log('[onedrive] redirect folder nav failed:', navRes.status)
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.log('[onedrive] redirect follow failed:', e instanceof Error ? e.message : e)
+        }
+
         // Try the specific item
         const itemUrl = `https://graph.microsoft.com/v1.0/drives/${siteDrive.id}/items/${urlItemSegment}`
         const itemRes = await fetch(itemUrl, { headers })
