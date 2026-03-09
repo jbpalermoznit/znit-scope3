@@ -294,7 +294,7 @@ export function ReviewTable({
                       {/* Confidence warning banner */}
                       {hasWarning && (
                         <tr className={cn('border-b', row.matchConfidence === 'none' ? 'bg-red-50' : 'bg-orange-50')}>
-                          <td colSpan={2} /> {/* expand + checkbox spacer */}
+                          <td colSpan={2} />
                           <td
                             colSpan={enabledCols.length + 1}
                             className={cn(
