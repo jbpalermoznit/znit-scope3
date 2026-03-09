@@ -3,7 +3,6 @@ import { Inter } from 'next/font/google'
 import Image from 'next/image'
 import './globals.css'
 import { ChatPanel } from '@/components/ChatPanel'
-import { Sidebar } from '@/components/Sidebar'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -29,12 +28,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <span className="text-sm text-muted-foreground">Carbon Accounting Platform</span>
           </div>
         </header>
-        <div className="flex h-[calc(100vh-3.5rem)]">
-          <Sidebar />
-          <main className="flex-1 min-w-0 overflow-auto px-6 py-8">
-            {children}
-          </main>
-        </div>
+        <main className="min-h-[calc(100vh-3.5rem)] overflow-auto">
+          {children}
+        </main>
         <ChatPanel />
       </body>
     </html>
