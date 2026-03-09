@@ -307,24 +307,41 @@ export async function listSharedPdfs(
           }
           console.log('[onedrive] unique parent folder IDs in search:', byParent.size)
 
-          // Match parent folders against our decoded GUIDs via sharepointIds.listItemUniqueId
           const guidsLower = guidsToTry.map(g => g.toLowerCase())
           const uniqueParentIds = [...byParent.keys()].filter(id => id !== '__root__')
-          console.log('[onedrive] checking', uniqueParentIds.length, 'parent folders for GUID match...')
+          console.log('[onedrive] checking', uniqueParentIds.length, 'parent folders (and ancestors) for GUID match...')
           console.log('[onedrive] target guids:', guidsLower)
 
-          for (const parentId of uniqueParentIds) {
-            const folderRes = await fetch(
-              `https://graph.microsoft.com/v1.0/drives/${siteDrive.id}/items/${parentId}?$select=id,name,sharepointIds,parentReference`,
+          // Walk up the ancestor chain from each direct parent to find the shared folder.
+          // This handles cases where PDFs are inside subfolders of the shared folder.
+          type FolderMeta = { id: string; name: string; sharepointIds?: { listItemUniqueId?: string }; parentReference?: { id?: string } }
+          const checkedFolderIds = new Set<string>()
+
+          async function findTargetFolder(folderId: string): Promise<FolderMeta | null> {
+            if (!folderId || checkedFolderIds.has(folderId)) return null
+            checkedFolderIds.add(folderId)
+            const res = await fetch(
+              `https://graph.microsoft.com/v1.0/drives/${siteDrive.id}/items/${folderId}?$select=id,name,sharepointIds,parentReference`,
               { headers }
             )
-            if (!folderRes.ok) continue
-            const folder = (await folderRes.json()) as { id: string; name: string; sharepointIds?: { listItemUniqueId?: string }; parentReference?: { id?: string } }
+            if (!res.ok) return null
+            const folder = (await res.json()) as FolderMeta
             const uniqueId = folder.sharepointIds?.listItemUniqueId?.toLowerCase().replace(/[{}]/g, '')
-            console.log('[onedrive] folder', folder.name, 'listItemUniqueId:', uniqueId)
+            console.log('[onedrive] checking folder', folder.name, 'listItemUniqueId:', uniqueId)
             if (uniqueId && guidsLower.some(g => g === uniqueId)) {
-              console.log('[onedrive] FOUND target folder via sharepointIds match!', folder.name, 'id:', folder.id)
-              // Collect ancestor names (root → matched folder) + subfolders inside it
+              console.log('[onedrive] FOUND target folder!', folder.name, folder.id)
+              return folder
+            }
+            // Walk up to parent (stops at drive root which has no parentReference.id)
+            if (folder.parentReference?.id) {
+              return findTargetFolder(folder.parentReference.id)
+            }
+            return null
+          }
+
+          for (const parentId of uniqueParentIds) {
+            const folder = await findTargetFolder(parentId)
+            if (folder) {
               const ancestorNames = folder.parentReference?.id
                 ? await getAncestorNames(siteDrive.id, folder.parentReference.id, headers)
                 : []
@@ -334,18 +351,9 @@ export async function listSharedPdfs(
               await collectPdfs(childrenUrl, headers, siteDrive.id, '', results, subfolderNames)
               const folderNames = [...ancestorNames, folder.name, ...subfolderNames]
               if (results.length > 0) return { files: results, folderNames }
-              // Fallback to search results already in memory for this folder
-              console.log('[onedrive] collectPdfs empty, using search results for matched folder')
-              const targetItems = byParent.get(parentId) ?? []
-              for (const item of targetItems) {
-                const dlUrl = item['@microsoft.graph.downloadUrl']
-                  ?? `https://graph.microsoft.com/v1.0/drives/${siteDrive.id}/items/${item.id}/content`
-                results.push({ name: item.name, downloadUrl: dlUrl, relativePath: item.name })
-              }
-              if (results.length > 0) return { files: results, folderNames }
             }
           }
-          console.log('[onedrive] no parent folder matched the GUIDs; falling back to all search results')
+          console.log('[onedrive] no folder matched the GUIDs (checked direct parents and ancestors); falling back to all search results')
 
           // Fallback: return all search results
           if (pdfItems && pdfItems.length > 0) {
