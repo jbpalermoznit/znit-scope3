@@ -217,6 +217,43 @@ export async function listSharedPdfs(
         }
         console.log('[onedrive] site drive item failed:', itemRes.status, await itemRes.text())
 
+        // NEW: SharePoint REST GetSharingLinkData — resolves the sharing URL to a server-relative folder path
+        // This works with Graph bearer tokens on SharePoint Online personal sites.
+        const spSharingDataUrl =
+          `https://${hostname}/personal/${driveOwnerUser}/_api/web/GetSharingLinkData(linkUrl=@url)` +
+          `?@url=${encodeURIComponent(`'${sharingUrl}'`)}`
+        console.log('[onedrive] trying GetSharingLinkData')
+        const spSharingRes = await fetch(spSharingDataUrl, {
+          headers: { ...headers, Accept: 'application/json;odata=nometadata' },
+        })
+        if (spSharingRes.ok) {
+          const spData = (await spSharingRes.json()) as { Location?: string; AbsoluteUrl?: string }
+          console.log('[onedrive] GetSharingLinkData:', JSON.stringify(spData))
+          const serverRelUrl = spData.Location ?? spData.AbsoluteUrl
+          if (serverRelUrl) {
+            // serverRelUrl is like /personal/contato_znit_ai/Documents/FolderName
+            const prefix = `/personal/${driveOwnerUser}/`
+            const drivePath = serverRelUrl.startsWith(prefix) ? serverRelUrl.slice(prefix.length) : serverRelUrl
+            console.log('[onedrive] drive-relative folder path:', drivePath)
+            const encodedPath = drivePath.split('/').map(encodeURIComponent).join('/')
+            const folderNavUrl = `https://graph.microsoft.com/v1.0/drives/${siteDrive.id}/root:/${encodedPath}:/children`
+            const folderNavRes = await fetch(folderNavUrl, { headers })
+            if (folderNavRes.ok) {
+              const results: SharedPdfFile[] = []
+              const folderNames: string[] = []
+              await collectPdfs(folderNavUrl, headers, siteDrive.id, '', results, folderNames)
+              if (results.length > 0) {
+                console.log('[onedrive] GetSharingLinkData: found', results.length, 'PDFs')
+                return { files: results, folderNames }
+              }
+            } else {
+              console.log('[onedrive] folder nav via SP path failed:', folderNavRes.status, await folderNavRes.text())
+            }
+          }
+        } else {
+          console.log('[onedrive] GetSharingLinkData failed:', spSharingRes.status, await spSharingRes.text())
+        }
+
         // Try to find the specific shared folder via SharePoint _api/web/GetFolderById with decoded GUIDs
         // The URL item segment is 35 bytes: 2-byte prefix + GUID1 (bytes 2-17) + GUID2 (bytes 19-34) + 1 trailing byte
         const segBuf = Buffer.from(
