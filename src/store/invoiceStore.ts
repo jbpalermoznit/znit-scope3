@@ -92,7 +92,7 @@ export const useInvoiceStore = create<InvoiceStore>()(
           return { rows: [...s.rows, blank] }
         }),
 
-      reset: () => set(initialState),
+      reset: () => set((s) => ({ ...initialState, onedriveToken: s.onedriveToken, onedriveSharingUrl: s.onedriveSharingUrl })),
     }),
     {
       name: 'znit-scope3-store',
