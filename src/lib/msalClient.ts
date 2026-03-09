@@ -11,7 +11,7 @@
  * 6. Paste IDs into .env.local as AZURE_CLIENT_ID and AZURE_TENANT_ID
  */
 
-const SCOPES = 'https://graph.microsoft.com/Files.Read.All https://graph.microsoft.com/Sites.Read.All https://graph.microsoft.com/User.Read offline_access'
+const SCOPES = 'https://graph.microsoft.com/Files.ReadWrite.All https://graph.microsoft.com/Sites.ReadWrite.All https://graph.microsoft.com/User.Read offline_access'
 
 function tenantUrl() {
   const tenant = process.env.AZURE_TENANT_ID
