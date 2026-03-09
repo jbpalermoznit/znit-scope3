@@ -28,7 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <span className="text-sm text-muted-foreground">Carbon Accounting Platform</span>
           </div>
         </header>
-        <main className="min-h-[calc(100vh-3.5rem)] overflow-auto">
+        <main className="min-h-[calc(100vh-3.5rem)] overflow-auto px-8 py-8">
           {children}
         </main>
         <ChatPanel />
