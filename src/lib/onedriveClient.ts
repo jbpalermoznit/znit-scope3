@@ -216,7 +216,42 @@ export async function listSharedPdfs(
           console.log('[onedrive] sharing URL resolved to:', finalUrl)
 
           if (finalUrl && finalUrl.includes(`/personal/${driveOwnerUser}/`)) {
-            const finalParts = new URL(finalUrl).pathname.split('/').filter(Boolean)
+            const finalUrlObj = new URL(finalUrl)
+
+            // SharePoint redirects folder sharing links to onedrive.aspx?id=<server-relative-path>
+            // Extract the folder path from the id query parameter.
+            const idParam = finalUrlObj.searchParams.get('id')
+            if (idParam) {
+              console.log('[onedrive] redirect id param:', idParam)
+              // idParam: /personal/contato_znit_ai/Documents/Folder/Path
+              // Drive root = Documents, so strip /personal/{user}/Documents/
+              const docsPrefix = `/personal/${driveOwnerUser}/Documents/`
+              const drivePath = idParam.toLowerCase().startsWith(docsPrefix.toLowerCase())
+                ? idParam.slice(docsPrefix.length)
+                : idParam.startsWith(`/personal/${driveOwnerUser}/`)
+                  ? idParam.slice(`/personal/${driveOwnerUser}/`.length)
+                  : ''
+              console.log('[onedrive] drive-relative path from id param:', drivePath)
+              if (drivePath) {
+                const encodedPath = drivePath.split('/').map(encodeURIComponent).join('/')
+                const navUrl = `https://graph.microsoft.com/v1.0/drives/${siteDrive.id}/root:/${encodedPath}:/children`
+                const navRes = await fetch(navUrl, { headers })
+                if (navRes.ok) {
+                  const results: SharedPdfFile[] = []
+                  const folderNames: string[] = []
+                  await collectPdfs(navUrl, headers, siteDrive.id, '', results, folderNames)
+                  if (results.length > 0) {
+                    console.log('[onedrive] redirect id-param strategy: found', results.length, 'PDFs in', drivePath)
+                    return { files: results, folderNames }
+                  }
+                } else {
+                  console.log('[onedrive] folder nav via id param failed:', navRes.status, await navRes.text())
+                }
+              }
+            }
+
+            // Fallback: try extracting path from URL pathname components
+            const finalParts = finalUrlObj.pathname.split('/').filter(Boolean)
             const pIdx = finalParts.indexOf('personal')
             if (pIdx !== -1 && finalParts.length > pIdx + 2) {
               const stopWords = new Set(['Forms', '_layouts', '_vti_bin', '_api', 'pages'])
@@ -228,7 +263,7 @@ export async function listSharedPdfs(
                 }
               }
               const folderPath = finalParts.slice(pIdx + 2, endIdx).join('/')
-              console.log('[onedrive] extracted folder path from redirect:', folderPath)
+              console.log('[onedrive] extracted folder path from pathname:', folderPath)
               if (folderPath) {
                 const encodedPath = folderPath.split('/').map(encodeURIComponent).join('/')
                 const navUrl = `https://graph.microsoft.com/v1.0/drives/${siteDrive.id}/root:/${encodedPath}:/children`
@@ -238,7 +273,7 @@ export async function listSharedPdfs(
                   const folderNames: string[] = []
                   await collectPdfs(navUrl, headers, siteDrive.id, '', results, folderNames)
                   if (results.length > 0) {
-                    console.log('[onedrive] redirect strategy: found', results.length, 'PDFs in', folderPath)
+                    console.log('[onedrive] redirect pathname strategy: found', results.length, 'PDFs in', folderPath)
                     return { files: results, folderNames }
                   }
                 } else {
