@@ -68,7 +68,7 @@ Regras CRÍTICAS:
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const response = await (client.beta.messages as any).create({
     model: MODEL,
-    max_tokens: 4096,
+    max_tokens: 8192,
     betas: ['pdfs-2024-09-25'],
     messages: [
       {
