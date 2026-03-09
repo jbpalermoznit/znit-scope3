@@ -238,10 +238,13 @@ export async function listSharedPdfs(
                 const navRes = await fetch(navUrl, { headers })
                 if (navRes.ok) {
                   const results: SharedPdfFile[] = []
-                  const folderNames: string[] = []
-                  await collectPdfs(navUrl, headers, siteDrive.id, '', results, folderNames)
+                  const subfolderNames: string[] = []
+                  await collectPdfs(navUrl, headers, siteDrive.id, '', results, subfolderNames)
                   if (results.length > 0) {
                     console.log('[onedrive] redirect id-param strategy: found', results.length, 'PDFs in', drivePath)
+                    // Include the ancestor path segments (from the resolved folder path) as filter suggestions
+                    const pathSegments = drivePath.split('/').filter(Boolean)
+                    const folderNames = [...pathSegments, ...subfolderNames]
                     return { files: results, folderNames }
                   }
                 } else {
