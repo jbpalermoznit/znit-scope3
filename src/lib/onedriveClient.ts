@@ -504,6 +504,93 @@ export async function listSharedPdfs(
   )
 }
 
+/**
+ * Resolves the drive ID and drive-relative folder path from a sharing URL,
+ * reusing the same redirect-follow strategy as listSharedPdfs.
+ */
+async function resolveDriveFolder(
+  sharingUrl: string,
+  headers: Record<string, string>
+): Promise<{ driveId: string; drivePath: string }> {
+  const urlObj = new URL(sharingUrl)
+  const hostname = urlObj.hostname
+  const pathParts = urlObj.pathname.split('/').filter(Boolean)
+  const personalIdx = pathParts.indexOf('personal')
+  if (personalIdx === -1 || pathParts.length <= personalIdx + 1) {
+    throw new Error('URL de compartilhamento não contém caminho pessoal (/personal/...).')
+  }
+  const driveOwnerUser = pathParts[personalIdx + 1]
+
+  const siteApiUrl = `https://graph.microsoft.com/v1.0/sites/${hostname}:/personal/${driveOwnerUser}`
+  const siteRes = await fetch(siteApiUrl, { headers })
+  if (!siteRes.ok) throw new Error(`Não foi possível acessar o site SharePoint: ${siteRes.status}`)
+  const site = (await siteRes.json()) as { id: string }
+
+  const siteDriveRes = await fetch(`https://graph.microsoft.com/v1.0/sites/${site.id}/drive`, { headers })
+  if (!siteDriveRes.ok) throw new Error(`Não foi possível acessar o drive: ${siteDriveRes.status}`)
+  const siteDrive = (await siteDriveRes.json()) as { id: string }
+
+  // Follow redirect to extract folder path from id query parameter
+  const redirectRes = await fetch(sharingUrl, {
+    redirect: 'follow',
+    headers: { ...headers, 'User-Agent': 'Mozilla/5.0 (compatible)' },
+  })
+  const finalUrl = redirectRes.url
+  if (!finalUrl || !finalUrl.includes(`/personal/${driveOwnerUser}/`)) {
+    throw new Error('Não foi possível resolver o caminho da pasta via redirect.')
+  }
+
+  const finalUrlObj = new URL(finalUrl)
+  const idParam = finalUrlObj.searchParams.get('id')
+  if (!idParam) throw new Error('Parâmetro "id" não encontrado na URL de redirect.')
+
+  const docsPrefix = `/personal/${driveOwnerUser}/Documents/`
+  const drivePath = idParam.toLowerCase().startsWith(docsPrefix.toLowerCase())
+    ? idParam.slice(docsPrefix.length)
+    : idParam.startsWith(`/personal/${driveOwnerUser}/`)
+      ? idParam.slice(`/personal/${driveOwnerUser}/`.length)
+      : ''
+
+  if (!drivePath) throw new Error('Caminho relativo da pasta não pôde ser extraído da URL.')
+
+  return { driveId: siteDrive.id, drivePath }
+}
+
+/**
+ * Uploads an Excel file to the OneDrive folder that was previously synced.
+ * Uses the same sharing URL to resolve the target folder, then PUTs the file via Graph API.
+ */
+export async function uploadExcelToDrive(
+  sharingUrl: string,
+  accessToken: string,
+  filename: string,
+  excelBuffer: Buffer
+): Promise<{ webUrl: string }> {
+  const headers: Record<string, string> = { Authorization: `Bearer ${accessToken}` }
+  const { driveId, drivePath } = await resolveDriveFolder(sharingUrl, headers)
+
+  const encodedPath = drivePath.split('/').map(encodeURIComponent).join('/')
+  const encodedFilename = encodeURIComponent(filename)
+  const uploadUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/root:/${encodedPath}/${encodedFilename}:/content`
+
+  const uploadRes = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      ...headers,
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    },
+    body: excelBuffer,
+  })
+
+  if (!uploadRes.ok) {
+    const msg = await uploadRes.text()
+    throw new Error(`Erro ao fazer upload para o OneDrive (${uploadRes.status}): ${msg}`)
+  }
+
+  const uploaded = (await uploadRes.json()) as { webUrl?: string }
+  return { webUrl: uploaded.webUrl ?? '' }
+}
+
 async function resolveRoot(root: GraphItem, baseUrl: string, headers: Record<string, string>): Promise<SharedPdfFile[]> {
   if (!root.folder) {
     if (!root.name.toLowerCase().endsWith('.pdf')) {

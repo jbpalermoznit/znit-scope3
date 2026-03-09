@@ -44,6 +44,7 @@ export default function Escopo3Page() {
     pdfs, setPdfs, listaItems, setListaItems,
     processingStates, setProcessingState, addRows, reset,
     inputDir, setInputDir, clearScan,
+    setOnedriveSync, clearOnedriveSync,
   } = useInvoiceStore()
 
   const [loading, setLoading] = useState(false)
@@ -127,6 +128,7 @@ export default function Escopo3Page() {
 
       setSyncInfo({ downloaded: syncData.downloaded, total: syncData.total })
       setInputDir(syncData.dir)
+      setOnedriveSync(msToken, onedriveUrl)
 
       setLoading(true)
       const scanUrl = `/api/scan?dir=${encodeURIComponent(syncData.dir)}`
@@ -395,7 +397,7 @@ export default function Escopo3Page() {
                     variant="ghost"
                     size="sm"
                     className="text-xs h-auto py-0.5 px-2 ml-auto"
-                    onClick={() => { setMsToken(null); setAuthState('idle') }}
+                    onClick={() => { setMsToken(null); setAuthState('idle'); clearOnedriveSync() }}
                   >
                     Sair
                   </Button>

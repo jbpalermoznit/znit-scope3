@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Download, Loader2, Info, Settings2, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, Info, Settings2, ChevronDown, ChevronUp, Cloud, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ReviewTable } from '@/components/ReviewTable'
 import { ColumnConfigurator } from '@/components/ColumnConfigurator'
@@ -11,9 +11,11 @@ import type { InvoiceRow } from '@/lib/types'
 
 export default function ReviewPage() {
   const router = useRouter()
-  const { rows, listaItems, columnConfig, setColumnConfig, updateRow, deleteRow, addBlankRow } = useInvoiceStore()
+  const { rows, listaItems, columnConfig, setColumnConfig, updateRow, deleteRow, addBlankRow, onedriveToken, onedriveSharingUrl } = useInvoiceStore()
   const [exporting, setExporting] = useState(false)
+  const [exportingOD, setExportingOD] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
+  const [onedriveWebUrl, setOnedriveWebUrl] = useState<string | null>(null)
   const [showConfigurator, setShowConfigurator] = useState(false)
 
   const aiRows = rows.filter((r) => r.aiSuggested).length
@@ -43,6 +45,27 @@ export default function ReviewPage() {
       setExportError(e instanceof Error ? e.message : 'Erro ao exportar')
     } finally {
       setExporting(false)
+    }
+  }
+
+  async function handleExportOneDrive() {
+    if (!onedriveToken || !onedriveSharingUrl) return
+    setExportingOD(true)
+    setExportError(null)
+    setOnedriveWebUrl(null)
+    try {
+      const res = await fetch('/api/export-onedrive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows, columnConfig, sharingUrl: onedriveSharingUrl, accessToken: onedriveToken }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Erro ao enviar para OneDrive')
+      setOnedriveWebUrl(data.webUrl)
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : 'Erro ao enviar para OneDrive')
+    } finally {
+      setExportingOD(false)
     }
   }
 
@@ -80,7 +103,19 @@ export default function ReviewPage() {
             {showConfigurator ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </Button>
 
-          <Button onClick={handleExport} disabled={rows.length === 0 || exporting} className="gap-2">
+          {onedriveToken && onedriveSharingUrl && (
+            <Button
+              variant="outline"
+              onClick={handleExportOneDrive}
+              disabled={rows.length === 0 || exportingOD || exporting}
+              className="gap-2"
+            >
+              {exportingOD ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
+              {exportingOD ? 'Enviando...' : 'Enviar para OneDrive'}
+            </Button>
+          )}
+
+          <Button onClick={handleExport} disabled={rows.length === 0 || exporting || exportingOD} className="gap-2">
             {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             {exporting ? 'Exportando...' : 'Exportar Excel'}
           </Button>
@@ -98,6 +133,22 @@ export default function ReviewPage() {
           <span className="flex items-center gap-1.5"><Info className="h-3.5 w-3.5 shrink-0" /> Sugestão IA — revise e confirme</span>
           <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-orange-300 shrink-0" /> Correspondência incerta — verifique o item</span>
           <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-red-300 shrink-0" /> Item não encontrado — seleção manual obrigatória</span>
+        </div>
+      )}
+
+      {/* OneDrive success banner */}
+      {onedriveWebUrl && (
+        <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
+          <Cloud className="h-3.5 w-3.5 shrink-0" />
+          <span>Planilha enviada para o OneDrive com sucesso.</span>
+          <a
+            href={onedriveWebUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-1 flex items-center gap-1 font-medium underline"
+          >
+            Abrir <ExternalLink className="h-3 w-3" />
+          </a>
         </div>
       )}
 

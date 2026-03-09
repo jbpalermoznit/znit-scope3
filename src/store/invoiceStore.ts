@@ -11,6 +11,8 @@ interface InvoiceStore {
   rows: InvoiceRow[]
   inputDir: string
   columnConfig: ColumnDef[]
+  onedriveToken: string | null
+  onedriveSharingUrl: string | null
 
   setPdfs: (pdfs: PdfFile[]) => void
   setListaItems: (items: ListaItem[]) => void
@@ -21,6 +23,8 @@ interface InvoiceStore {
   addBlankRow: (sourcePdf: string) => void
   setInputDir: (dir: string) => void
   setColumnConfig: (config: ColumnDef[]) => void
+  setOnedriveSync: (token: string, sharingUrl: string) => void
+  clearOnedriveSync: () => void
   clearScan: () => void
   reset: () => void
 }
@@ -32,6 +36,8 @@ const initialState = {
   rows: [],
   inputDir: '',
   columnConfig: DEFAULT_COLUMNS,
+  onedriveToken: null,
+  onedriveSharingUrl: null,
 }
 
 export const useInvoiceStore = create<InvoiceStore>()(
@@ -43,6 +49,8 @@ export const useInvoiceStore = create<InvoiceStore>()(
       setListaItems: (items) => set({ listaItems: items }),
       setInputDir: (dir) => set({ inputDir: dir }),
       setColumnConfig: (config) => set({ columnConfig: config }),
+      setOnedriveSync: (token, sharingUrl) => set({ onedriveToken: token, onedriveSharingUrl: sharingUrl }),
+      clearOnedriveSync: () => set({ onedriveToken: null, onedriveSharingUrl: null }),
       clearScan: () => set({ pdfs: [], processingStates: {} }),
 
       setProcessingState: (pdfPath, state) =>
