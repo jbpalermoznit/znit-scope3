@@ -2,9 +2,10 @@ import fs from 'fs'
 import path from 'path'
 import type { PdfFile } from './types'
 
-const INPUT_DIR = path.join(process.cwd(), 'Input_Files')
+const DEFAULT_INPUT_DIR = path.join(process.cwd(), 'Input_Files')
 
-export function scanInputFiles(): PdfFile[] {
+export function scanInputFiles(customDir?: string): PdfFile[] {
+  const INPUT_DIR = customDir ? path.resolve(customDir) : DEFAULT_INPUT_DIR
   const results: PdfFile[] = []
 
   if (!fs.existsSync(INPUT_DIR)) return results

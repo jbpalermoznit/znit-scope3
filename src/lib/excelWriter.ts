@@ -1,47 +1,43 @@
 import ExcelJS from 'exceljs'
 import path from 'path'
-import type { InvoiceRow } from './types'
+import type { ColumnDef, InvoiceRow } from './types'
+import { DEFAULT_COLUMNS } from './types'
 
 const TEMPLATE_PATH = path.join(process.cwd(), 'Template_Bens_Servicos_Comprados.xlsx')
 const DATA_SHEET = 'Bens e Serviços Comprados'
 
-export async function generateExcel(rows: InvoiceRow[]): Promise<Buffer> {
+export async function generateExcel(rows: InvoiceRow[], columnConfig: ColumnDef[] = DEFAULT_COLUMNS): Promise<Buffer> {
+  const enabledCols = columnConfig.filter((c) => c.enabled)
+
   const workbook = new ExcelJS.Workbook()
   await workbook.xlsx.readFile(TEMPLATE_PATH)
 
   const sheet = workbook.getWorksheet(DATA_SHEET)
   if (!sheet) throw new Error(`Aba "${DATA_SHEET}" não encontrada no template.`)
 
-  // Find first data row (row after header)
   const firstDataRow = 2
 
-  // Get style reference from row 2 if it exists (may be empty template row)
+  // Get style reference from row 2 before clearing
   const styleRef = sheet.getRow(firstDataRow)
 
-  // Clear existing data rows (keep header)
+  // Clear all rows from header onward and rewrite
   const lastRow = sheet.lastRow?.number ?? firstDataRow
-  for (let i = lastRow; i >= firstDataRow; i--) {
+  for (let i = lastRow; i >= 1; i--) {
     sheet.spliceRows(i, 1)
   }
 
-  rows.forEach((row, idx) => {
-    const newRow = sheet.getRow(firstDataRow + idx)
-    newRow.values = [
-      null, // ExcelJS rows are 1-indexed, col 1 = index 1
-      row.data,
-      row.descricao,
-      row.quantidade,
-      row.item,
-      row.itemId,
-      row.unidadeMedida,
-      row.unidadeNeg,
-      row.filtro1,
-      row.filtro2,
-      row.filtro3,
-      row.filtro4,
-    ]
+  // Write header row with configured column labels
+  const headerRow = sheet.getRow(1)
+  headerRow.values = [null, ...enabledCols.map((c) => c.label)]
+  headerRow.font = { bold: true }
+  headerRow.commit()
 
-    // Copy border/font style from header reference if available
+  // Write data rows
+  rows.forEach((row, idx) => {
+    const r = row as Record<string, unknown>
+    const newRow = sheet.getRow(firstDataRow + idx)
+    newRow.values = [null, ...enabledCols.map((c) => r[c.key] ?? '')]
+
     if (styleRef) {
       newRow.eachCell((cell, colNumber) => {
         const refCell = styleRef.getCell(colNumber)

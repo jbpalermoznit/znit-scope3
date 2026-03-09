@@ -1,246 +1,281 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import {
-  FileText,
-  FolderOpen,
-  Loader2,
-  CheckCircle2,
-  XCircle,
+  Factory,
+  Zap,
+  ShoppingBag,
+  TrendingDown,
+  Sliders,
+  Leaf,
+  FileBarChart,
+  Lock,
   ChevronRight,
-  RefreshCw,
+  CheckCircle2,
+  Clock,
+  ArrowRight,
+  FileText,
+  BarChart3,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { useInvoiceStore } from '@/store/invoiceStore'
-import type { PdfFile } from '@/lib/types'
 
-function statusVariant(status?: string) {
-  if (status === 'done') return 'success'
-  if (status === 'error') return 'destructive'
-  if (status === 'processing') return 'warning'
-  return 'pending'
+interface ModuleCard {
+  label: string
+  description: string
+  icon: React.ComponentType<{ className?: string }>
+  href?: string
+  status: 'available' | 'locked' | 'inprogress'
+  category: string
 }
 
-function statusLabel(status?: string) {
-  if (status === 'done') return 'Concluído'
-  if (status === 'error') return 'Erro'
-  if (status === 'processing') return 'Processando...'
-  return 'Aguardando'
-}
+const MODULES: ModuleCard[] = [
+  {
+    label: 'Escopo 1',
+    description: 'Emissões diretas de fontes próprias ou controladas',
+    icon: Factory,
+    status: 'locked',
+    category: 'Inventário GHG',
+  },
+  {
+    label: 'Escopo 2',
+    description: 'Emissões indiretas de energia elétrica comprada',
+    icon: Zap,
+    status: 'locked',
+    category: 'Inventário GHG',
+  },
+  {
+    label: 'Escopo 3',
+    description: 'Bens e serviços comprados — extração via IA de notas fiscais',
+    icon: ShoppingBag,
+    href: '/escopo3',
+    status: 'available',
+    category: 'Inventário GHG',
+  },
+  {
+    label: 'Jornada de Redução',
+    description: 'Plano de metas e ações para reduzir emissões ao longo dos anos',
+    icon: TrendingDown,
+    status: 'locked',
+    category: 'Próximos Passos',
+  },
+  {
+    label: 'Simulação de Cenários',
+    description: 'Compare estratégias de descarbonização e seus impactos',
+    icon: Sliders,
+    status: 'locked',
+    category: 'Próximos Passos',
+  },
+  {
+    label: 'Compensação de Carbono',
+    description: 'Cálculo e gestão de créditos de carbono para neutralização',
+    icon: Leaf,
+    status: 'locked',
+    category: 'Próximos Passos',
+  },
+]
 
-export default function HomePage() {
-  const router = useRouter()
-  const {
-    pdfs, setPdfs, listaItems, setListaItems,
-    processingStates, setProcessingState, addRows, reset,
-  } = useInvoiceStore()
+const JOURNEY = [
+  { step: 1, label: 'Inventário de Emissões', sub: 'Escopos 1, 2 e 3', active: true },
+  { step: 2, label: 'Diagnóstico e Metas', sub: 'Baseline e alvos de redução', active: false },
+  { step: 3, label: 'Jornada de Redução', sub: 'Plano de ação plurianual', active: false },
+  { step: 4, label: 'Simulação de Cenários', sub: 'Análise de impacto e custo', active: false },
+  { step: 5, label: 'Compensação', sub: 'Neutralização de emissões residuais', active: false },
+  { step: 6, label: 'Relatório Final', sub: 'GHG Protocol · CDP · ESG', active: false },
+]
 
-  const [loading, setLoading] = useState(false)
-  const [processing, setProcessing] = useState(false)
-  const [scanError, setScanError] = useState<string | null>(null)
+export default function DashboardPage() {
+  const rows = useInvoiceStore((s) => s.rows)
+  const pdfs = useInvoiceStore((s) => s.pdfs)
+  const processingStates = useInvoiceStore((s) => s.processingStates)
 
   const doneCount = Object.values(processingStates).filter((s) => s.status === 'done').length
-  const totalRows = useInvoiceStore((s) => s.rows.length)
-  const progress = pdfs.length > 0 ? (doneCount / pdfs.length) * 100 : 0
-  const allDone = pdfs.length > 0 && doneCount === pdfs.length
-  const hasErrors = Object.values(processingStates).some((s) => s.status === 'error')
+  const hasScope3Data = rows.length > 0
 
-  async function scan() {
-    setLoading(true)
-    setScanError(null)
-    try {
-      const [scanRes, listaRes] = await Promise.all([
-        fetch('/api/scan').then((r) => r.json()),
-        fetch('/api/lista').then((r) => r.json()),
-      ])
-      if (scanRes.error) throw new Error(scanRes.error)
-      if (listaRes.error) throw new Error(listaRes.error)
-      setPdfs(scanRes.pdfs as PdfFile[])
-      setListaItems(listaRes.items)
-    } catch (e) {
-      setScanError(e instanceof Error ? e.message : 'Erro ao carregar arquivos')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    if (pdfs.length === 0) scan()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  async function processAll() {
-    reset()
-    setProcessing(true)
-    // Re-load pdfs and lista fresh
-    const [scanRes, listaRes] = await Promise.all([
-      fetch('/api/scan').then((r) => r.json()),
-      fetch('/api/lista').then((r) => r.json()),
-    ])
-    const freshPdfs: PdfFile[] = scanRes.pdfs ?? []
-    setPdfs(freshPdfs)
-    setListaItems(listaRes.items ?? [])
-
-    for (const pdf of freshPdfs) {
-      setProcessingState(pdf.relativePath, { status: 'processing' })
-      try {
-        const res = await fetch('/api/process', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pdf }),
-        })
-        const data = await res.json()
-        if (!res.ok || data.error) throw new Error(data.error ?? 'Erro desconhecido')
-        addRows(data.rows)
-        setProcessingState(pdf.relativePath, { status: 'done', rowCount: data.rows.length })
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Erro'
-        setProcessingState(pdf.relativePath, { status: 'error', error: msg })
-      }
-    }
-    setProcessing(false)
-  }
+  const kpis = [
+    {
+      label: 'PDFs Processados',
+      value: doneCount > 0 ? `${doneCount} / ${pdfs.length}` : pdfs.length > 0 ? `0 / ${pdfs.length}` : '—',
+      sub: 'Escopo 3 · Bens e Serviços',
+      icon: FileText,
+      color: 'text-primary',
+      bg: 'bg-primary/8',
+    },
+    {
+      label: 'Linhas Extraídas',
+      value: rows.length > 0 ? rows.length.toLocaleString('pt-BR') : '—',
+      sub: 'Itens de notas fiscais',
+      icon: BarChart3,
+      color: 'text-emerald-600',
+      bg: 'bg-emerald-50',
+    },
+    {
+      label: 'Módulos Ativos',
+      value: '1 / 6',
+      sub: 'Escopo 3 disponível',
+      icon: CheckCircle2,
+      color: 'text-amber-600',
+      bg: 'bg-amber-50',
+    },
+    {
+      label: 'Relatórios',
+      value: hasScope3Data ? 'Pronto' : 'Aguardando',
+      sub: 'Exportação Excel disponível',
+      icon: FileBarChart,
+      color: 'text-sky-600',
+      bg: 'bg-sky-50',
+    },
+  ]
 
   return (
-    <div className="space-y-6">
-      {/* Title */}
+    <div className="space-y-8 max-w-5xl">
+      {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold text-foreground">Processamento de Notas Fiscais</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Plataforma de Carbon Accounting</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Analise os PDFs com IA e preencha a planilha de Bens e Serviços Comprados (Scope 3).
+          Inventário GHG Protocol · Ano de referência 2025 · Bens e Serviços Comprados
         </p>
       </div>
 
-      {/* Files card */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-base">Arquivos em Input_Files</CardTitle>
-              <CardDescription>
-                {pdfs.length === 0 ? 'Nenhum PDF encontrado' : `${pdfs.length} arquivo(s) encontrado(s)`}
-                {listaItems.length > 0 && ` · ${listaItems.length} itens na Lista`}
-              </CardDescription>
-            </div>
-            <Button variant="outline" size="sm" onClick={scan} disabled={loading || processing}>
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              Atualizar
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {scanError && (
-            <p className="text-sm text-destructive mb-3">{scanError}</p>
-          )}
+      {/* KPIs */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {kpis.map((kpi) => (
+          <Card key={kpi.label} className="border shadow-none">
+            <CardContent className="pt-5 pb-4 px-5">
+              <div className={cn('inline-flex items-center justify-center h-8 w-8 rounded-lg mb-3', kpi.bg)}>
+                <kpi.icon className={cn('h-4 w-4', kpi.color)} />
+              </div>
+              <p className="text-2xl font-semibold tracking-tight leading-none mb-1">{kpi.value}</p>
+              <p className="text-xs font-medium text-foreground">{kpi.label}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{kpi.sub}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
-          {pdfs.length === 0 && !loading && !scanError && (
-            <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
-              <FolderOpen className="h-10 w-10 mb-2 opacity-30" />
-              <p className="text-sm">Nenhum PDF encontrado em Input_Files/</p>
-              <p className="text-xs mt-1">Adicione arquivos .pdf à pasta e clique em Atualizar</p>
-            </div>
-          )}
-
-          {pdfs.length > 0 && (
-            <div className="divide-y rounded-md border overflow-hidden">
-              {pdfs.map((pdf) => {
-                const state = processingStates[pdf.relativePath]
-                return (
-                  <div
-                    key={pdf.relativePath}
-                    className="flex items-center gap-3 px-4 py-3 text-sm bg-background hover:bg-muted/30 transition-colors"
-                  >
-                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{pdf.filename}</p>
-                      {/* Show folder-derived values if any */}
-                      {(pdf.unidadeNeg || pdf.filtro1) && (
-                        <p className="text-xs text-muted-foreground truncate mt-0.5">
-                          {[pdf.unidadeNeg, pdf.filtro1, pdf.filtro2, pdf.filtro3, pdf.filtro4]
-                            .filter(Boolean)
-                            .join(' › ')}
-                        </p>
+      {/* Modules */}
+      <div>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          Módulos da Plataforma
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {MODULES.map((mod) => {
+            const isAvailable = mod.status === 'available'
+            const inner = (
+              <Card
+                className={cn(
+                  'border transition-all',
+                  isAvailable
+                    ? 'hover:border-primary/40 hover:shadow-sm cursor-pointer'
+                    : 'opacity-60 cursor-not-allowed'
+                )}
+              >
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div
+                      className={cn(
+                        'inline-flex items-center justify-center h-8 w-8 rounded-lg',
+                        isAvailable ? 'bg-primary/10' : 'bg-muted'
                       )}
-                      {state?.status === 'error' && (
-                        <p className="text-xs text-destructive mt-0.5">{state.error}</p>
-                      )}
-                      {state?.status === 'done' && state.rowCount !== undefined && (
-                        <p className="text-xs text-green-700 mt-0.5">
-                          {state.rowCount} {state.rowCount === 1 ? 'linha extraída' : 'linhas extraídas'}
-                        </p>
-                      )}
+                    >
+                      <mod.icon
+                        className={cn('h-4 w-4', isAvailable ? 'text-primary' : 'text-muted-foreground')}
+                      />
                     </div>
-                    <Badge variant={statusVariant(state?.status) as any}>
-                      {state?.status === 'processing' && (
-                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                      )}
-                      {state?.status === 'done' && <CheckCircle2 className="h-3 w-3 mr-1" />}
-                      {state?.status === 'error' && <XCircle className="h-3 w-3 mr-1" />}
-                      {statusLabel(state?.status)}
-                    </Badge>
+                    {!isAvailable && (
+                      <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                        <Lock className="h-2.5 w-2.5" />
+                        Em breve
+                      </span>
+                    )}
+                    {isAvailable && (
+                      <span className="flex items-center gap-1 text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                        <CheckCircle2 className="h-2.5 w-2.5" />
+                        Disponível
+                      </span>
+                    )}
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  <CardTitle className="text-sm mt-2">{mod.label}</CardTitle>
+                  <p className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">
+                    {mod.category}
+                  </p>
+                </CardHeader>
+                <CardContent className="px-4 pb-4 pt-0">
+                  <CardDescription className="text-xs leading-relaxed">{mod.description}</CardDescription>
+                  {isAvailable && (
+                    <div className="flex items-center gap-1 mt-3 text-xs font-medium text-primary">
+                      Acessar módulo
+                      <ArrowRight className="h-3 w-3" />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )
 
-      {/* Progress bar during processing */}
-      {processing && (
-        <div className="space-y-1.5">
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Processando com IA...</span>
-            <span>{doneCount} / {pdfs.length}</span>
-          </div>
-          <Progress value={progress} />
+            return isAvailable && mod.href ? (
+              <Link key={mod.label} href={mod.href} className="block">
+                {inner}
+              </Link>
+            ) : (
+              <div key={mod.label}>{inner}</div>
+            )
+          })}
         </div>
-      )}
-
-      {/* Actions */}
-      <div className="flex items-center gap-3">
-        <Button
-          onClick={processAll}
-          disabled={pdfs.length === 0 || processing || loading}
-          className="gap-2"
-        >
-          {processing && <Loader2 className="h-4 w-4 animate-spin" />}
-          {processing ? 'Processando...' : 'Processar Todos com IA'}
-        </Button>
-
-        {(allDone || (totalRows > 0)) && (
-          <Button
-            variant="outline"
-            onClick={() => router.push('/review')}
-            className="gap-2"
-          >
-            Revisar Dados
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        )}
-
-        {hasErrors && (
-          <p className="text-xs text-destructive">
-            Alguns arquivos falharam. Verifique sua ANTHROPIC_API_KEY.
-          </p>
-        )}
       </div>
 
-      {/* Legend */}
-      {totalRows > 0 && !processing && (
-        <p className="text-xs text-muted-foreground">
-          {totalRows} {totalRows === 1 ? 'linha extraída' : 'linhas extraídas'} no total.{' '}
-          Clique em <strong>Revisar Dados</strong> para conferir e exportar.
-        </p>
-      )}
+      {/* Journey timeline */}
+      <div>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
+          Jornada de Carbon Accounting
+        </h2>
+        <div className="relative">
+          {/* Line */}
+          <div className="absolute left-[15px] top-5 bottom-5 w-px bg-border" />
+          <div className="space-y-4">
+            {JOURNEY.map((j, i) => (
+              <div key={j.step} className="flex items-start gap-4 relative">
+                <div
+                  className={cn(
+                    'h-8 w-8 rounded-full border-2 flex items-center justify-center shrink-0 text-xs font-bold z-10',
+                    j.active
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-muted-foreground/30 bg-background text-muted-foreground/50'
+                  )}
+                >
+                  {i === 0 && hasScope3Data ? (
+                    <CheckCircle2 className="h-4 w-4" />
+                  ) : j.active ? (
+                    <Clock className="h-3.5 w-3.5" />
+                  ) : (
+                    <span>{j.step}</span>
+                  )}
+                </div>
+                <div className="pt-1">
+                  <p
+                    className={cn(
+                      'text-sm font-medium',
+                      j.active ? 'text-foreground' : 'text-muted-foreground/60'
+                    )}
+                  >
+                    {j.label}
+                  </p>
+                  <p className="text-xs text-muted-foreground/50">{j.sub}</p>
+                </div>
+                {j.active && (
+                  <Link href="/escopo3" className="ml-auto pt-1 shrink-0">
+                    <Button size="sm" className="h-7 text-xs gap-1">
+                      Acessar
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </Link>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

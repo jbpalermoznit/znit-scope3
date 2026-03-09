@@ -1,3 +1,27 @@
+// Column definition for dynamic review table + Excel export
+export interface ColumnDef {
+  key: string
+  label: string
+  enabled: boolean
+  width: string // Tailwind width class
+}
+
+export const DEFAULT_COLUMNS: ColumnDef[] = [
+  { key: 'data',          label: 'Data',                enabled: true,  width: 'w-24' },
+  { key: 'descricao',     label: 'Descrição',           enabled: true,  width: 'w-48' },
+  { key: 'quantidade',    label: 'Quantidade',           enabled: true,  width: 'w-20' },
+  { key: 'item',          label: 'Item',                enabled: true,  width: 'w-52' },
+  { key: 'itemId',        label: 'ID Item',             enabled: true,  width: 'w-20' },
+  { key: 'unidadeMedida', label: 'Unidade de Medida',   enabled: true,  width: 'w-20' },
+  { key: 'unidadeNeg',    label: 'Unidade de Negócio',  enabled: true,  width: 'w-28' },
+  { key: 'filtro1',       label: 'Filtro 1',            enabled: true,  width: 'w-24' },
+  { key: 'filtro2',       label: 'Filtro 2',            enabled: true,  width: 'w-24' },
+  { key: 'filtro3',       label: 'Filtro 3',            enabled: true,  width: 'w-24' },
+  { key: 'filtro4',       label: 'Filtro 4',            enabled: false, width: 'w-24' },
+  { key: 'valorTotal',    label: 'Valor',               enabled: true,  width: 'w-28' },
+  { key: 'sourcePdf',     label: 'Nome da Evidência',   enabled: true,  width: 'w-40' },
+]
+
 // One PDF found on disk inside Input_Files/
 export interface PdfFile {
   absolutePath: string
@@ -15,7 +39,7 @@ export interface PdfFile {
 export interface InvoiceRow {
   id: string             // uuid, client-side only
   sourcePdf: string      // filename, for grouping in review table
-  // Columns A–K
+  // Columns A–L
   data: string           // A — date "DD/MM/YYYY"
   descricao: string      // B
   quantidade: string     // C
@@ -27,9 +51,12 @@ export interface InvoiceRow {
   filtro2: string        // I
   filtro3: string        // J
   filtro4: string        // K
+  valorTotal: string     // L — total invoice value
   // UI state
-  aiSuggested: boolean   // true → yellow highlight
+  aiSuggested: boolean          // true → yellow highlight
   aiSuggestedItem?: string
+  matchConfidence?: 'high' | 'low' | 'none'
+  matchNote?: string            // explanation when confidence is low/none
 }
 
 // One row from the Lista reference sheet
@@ -60,6 +87,9 @@ export interface ClaudeLineItem {
   descricao: string
   quantidade: string
   unidadeMedida: string
+  valor: string
   suggestedItem: string
   suggestedItemId: string
+  matchConfidence: 'high' | 'low' | 'none'
+  matchNote?: string
 }

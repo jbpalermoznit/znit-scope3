@@ -1,13 +1,16 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { v4 as uuidv4 } from 'uuid'
-import type { InvoiceRow, ListaItem, PdfFile, PdfProcessingState } from '@/lib/types'
+import type { ColumnDef, InvoiceRow, ListaItem, PdfFile, PdfProcessingState } from '@/lib/types'
+import { DEFAULT_COLUMNS } from '@/lib/types'
 
 interface InvoiceStore {
   pdfs: PdfFile[]
   listaItems: ListaItem[]
   processingStates: Record<string, PdfProcessingState>
   rows: InvoiceRow[]
+  inputDir: string
+  columnConfig: ColumnDef[]
 
   setPdfs: (pdfs: PdfFile[]) => void
   setListaItems: (items: ListaItem[]) => void
@@ -16,6 +19,9 @@ interface InvoiceStore {
   updateRow: (id: string, updates: Partial<InvoiceRow>) => void
   deleteRow: (id: string) => void
   addBlankRow: (sourcePdf: string) => void
+  setInputDir: (dir: string) => void
+  setColumnConfig: (config: ColumnDef[]) => void
+  clearScan: () => void
   reset: () => void
 }
 
@@ -24,6 +30,8 @@ const initialState = {
   listaItems: [],
   processingStates: {},
   rows: [],
+  inputDir: '',
+  columnConfig: DEFAULT_COLUMNS,
 }
 
 export const useInvoiceStore = create<InvoiceStore>()(
@@ -33,6 +41,9 @@ export const useInvoiceStore = create<InvoiceStore>()(
 
       setPdfs: (pdfs) => set({ pdfs }),
       setListaItems: (items) => set({ listaItems: items }),
+      setInputDir: (dir) => set({ inputDir: dir }),
+      setColumnConfig: (config) => set({ columnConfig: config }),
+      clearScan: () => set({ pdfs: [], processingStates: {} }),
 
       setProcessingState: (pdfPath, state) =>
         set((s) => ({
@@ -67,6 +78,7 @@ export const useInvoiceStore = create<InvoiceStore>()(
             filtro2: pdf?.filtro2 ?? '',
             filtro3: pdf?.filtro3 ?? '',
             filtro4: pdf?.filtro4 ?? '',
+            valorTotal: '',
             aiSuggested: false,
           }
           return { rows: [...s.rows, blank] }

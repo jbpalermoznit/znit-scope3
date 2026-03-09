@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const listaItems = await getListaItems()
     const extraction = await extractInvoiceData(pdf.absolutePath, listaItems)
 
-    const rows: InvoiceRow[] = extraction.lineItems.map((item) => ({
+    const rows: InvoiceRow[] = (extraction.lineItems ?? []).map((item) => ({
       id: uuidv4(),
       sourcePdf: pdf.filename,
       data: extraction.invoiceDate,
@@ -30,8 +30,11 @@ export async function POST(req: NextRequest) {
       filtro2: pdf.filtro2,
       filtro3: pdf.filtro3,
       filtro4: pdf.filtro4,
+      valorTotal: item.valor ?? '',
       aiSuggested: true,
       aiSuggestedItem: item.suggestedItem,
+      matchConfidence: item.matchConfidence ?? 'high',
+      matchNote: item.matchNote,
     }))
 
     return NextResponse.json({ rows, invoiceNumber: extraction.invoiceNumber })

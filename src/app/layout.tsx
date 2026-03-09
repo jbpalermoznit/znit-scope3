@@ -2,12 +2,14 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import Image from 'next/image'
 import './globals.css'
+import { ChatPanel } from '@/components/ChatPanel'
+import { Sidebar } from '@/components/Sidebar'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'ZNIT — Scope 3 Processor',
-  description: 'Processamento de notas fiscais para relatório de emissões Scope 3',
+  title: 'ZNIT — Carbon Accounting Platform',
+  description: 'Plataforma de inventário e gestão de emissões GHG Protocol',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -15,7 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="pt-BR">
       <body className={inter.className}>
         <header className="border-b bg-white sticky top-0 z-10">
-          <div className="max-w-7xl mx-auto px-6 h-14 flex items-center gap-3">
+          <div className="px-6 h-14 flex items-center gap-3">
             <Image
               src="/logo.avif"
               alt="ZNIT"
@@ -24,12 +26,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               className="object-contain"
               priority
             />
-            <span className="text-sm text-muted-foreground">Scope 3 · Bens e Serviços Comprados</span>
+            <span className="text-sm text-muted-foreground">Carbon Accounting Platform</span>
           </div>
         </header>
-        <main className="max-w-7xl mx-auto px-6 py-8">
-          {children}
-        </main>
+        <div className="flex h-[calc(100vh-3.5rem)]">
+          <Sidebar />
+          <main className="flex-1 min-w-0 overflow-auto px-6 py-8">
+            {children}
+          </main>
+        </div>
+        <ChatPanel />
       </body>
     </html>
   )

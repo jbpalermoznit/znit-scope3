@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { generateExcel } from '@/lib/excelWriter'
-import type { InvoiceRow } from '@/lib/types'
+import type { ColumnDef, InvoiceRow } from '@/lib/types'
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as { rows: InvoiceRow[] }
-    const { rows } = body
+    const body = (await req.json()) as { rows: InvoiceRow[]; columnConfig?: ColumnDef[] }
+    const { rows, columnConfig } = body
 
     if (!rows?.length) {
       return NextResponse.json({ error: 'Nenhuma linha para exportar' }, { status: 400 })
     }
 
-    const buffer = await generateExcel(rows)
+    const buffer = await generateExcel(rows, columnConfig)
 
     return new NextResponse(buffer, {
       status: 200,
