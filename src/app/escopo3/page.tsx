@@ -15,6 +15,7 @@ import {
   HardDrive,
   LogIn,
   Copy,
+  ArrowLeft,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -260,11 +261,16 @@ export default function Escopo3Page() {
   return (
     <div className="space-y-6">
       {/* Title */}
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">Processamento de Notas Fiscais</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Analise os PDFs com IA e preencha a planilha de Bens e Serviços Comprados (Scope 3).
-        </p>
+      <div className="flex items-start gap-3">
+        <Button variant="ghost" size="icon" onClick={() => router.push('/')} className="shrink-0 mt-0.5">
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Processamento de Notas Fiscais</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Analise os PDFs com IA e preencha a planilha de Bens e Serviços Comprados (Scope 3).
+          </p>
+        </div>
       </div>
 
       {/* Source selector */}
