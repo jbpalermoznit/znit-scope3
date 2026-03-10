@@ -1,6 +1,10 @@
-# ZNIT Scope 3 — Processador de Notas Fiscais
+# ZNIT Carbon Accounting Platform
 
-Plataforma web para extração automática de dados de notas fiscais em PDF via IA (Claude), com exportação para a planilha de **Bens e Serviços Comprados** do GHG Protocol (Escopo 3).
+Plataforma web para extração automática de dados de documentos fiscais em PDF via IA (Claude), com exportação para planilhas do **Inventário GHG Protocol**.
+
+Módulos disponíveis:
+- **Escopo 3 — Bens e Serviços**: processa notas fiscais de materiais e serviços comprados
+- **Água — Contas de Água**: processa faturas de concessionárias de água/saneamento, extraindo consumo em m³ e custo
 
 ---
 
@@ -52,7 +56,7 @@ Acesse [http://localhost:3000](http://localhost:3000).
 
 ### 1. Acessar o módulo
 
-Na tela inicial, clique em **Escopo 3** (único módulo disponível).
+Na tela inicial, clique em **Escopo 3 — Bens e Serviços**.
 
 ---
 
@@ -139,3 +143,31 @@ Input_Files/
 ## Lista de referência
 
 O sistema lê automaticamente o arquivo `Template_Bens_Servicos_Comprados.xlsx` para obter a lista de itens válidos (aba **Lista**). Mantenha esse arquivo atualizado na raiz do projeto.
+
+---
+
+## Como usar o módulo Água
+
+O fluxo é idêntico ao Escopo 3. As diferenças são:
+
+- Origem: clique em **Água — Contas de Água** na tela inicial
+- O Claude utiliza um prompt especializado para faturas de água/saneamento, extraindo:
+  - Consumo de Água (m³ e valor)
+  - Esgoto Coletado (m³ e valor)
+  - Tarifa Básica Água / Esgoto
+  - Outros serviços administrativos (ex: Alteração Cadastral)
+  - Multas e juros por atraso são **ignorados** automaticamente
+- PDFs com **múltiplas faturas escaneadas** (várias contas em um único arquivo) são processados corretamente — cada fatura é extraída separadamente
+- O arquivo exportado segue o template **Agua_YYYY-MM-DD.xlsx**
+
+### Skill do classificador de água
+
+O arquivo `Skill_AguaClassifier.md` na raiz do projeto serve como documento de referência injetado no prompt do Claude a cada processamento. Ele contém:
+
+- Edge cases conhecidos (caminhão-pipa, categorias residencial/comercial, encargos por atraso)
+- Exemplos de saída esperada por tipo de fatura
+- Histórico de versões do classificador
+
+Para melhorar o classificador ao encontrar uma fatura mal extraída:
+1. Documente o edge case em `Skill_AguaClassifier.md`
+2. O Claude passará a usar as novas regras automaticamente no próximo processamento
